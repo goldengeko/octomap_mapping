@@ -375,6 +375,8 @@ OctomapServer::OctomapServer(const rclcpp::NodeOptions & node_options)
   if (!openFile(filename)) {
     RCLCPP_WARN(get_logger(), "Could not open file %s", filename.c_str());
   }
+
+  reverse_occupancy_ = declare_parameter("reverse_occupancy", false);
 }
 
 bool OctomapServer::openFile(const std::string & filename)
@@ -1374,12 +1376,19 @@ void OctomapServer::update2DMap(const OcTreeT::iterator & it, bool occupied)
   // update 2D map (occupied always overrides):
   if (it.getDepth() == max_tree_depth_) {
     unsigned idx = mapIdx(it.getKey());
-    if (occupied) {
-      gridmap_.data[mapIdx(it.getKey())] = 100;
-    } else if (gridmap_.data[idx] == -1) {
-      gridmap_.data[idx] = 0;
+    if (reverse_occupancy_) {
+      if (occupied) {
+        gridmap_.data[idx] = 0;  // Obstacle is white
+      } else if (gridmap_.data[idx] == -1) {
+        gridmap_.data[idx] = 100;  // Free space is black
+      }
+    } else {
+      if (occupied) {
+        gridmap_.data[idx] = 100;
+      } else if (gridmap_.data[idx] == -1) {
+        gridmap_.data[idx] = 0;
+      }
     }
-
   } else {
     int int_size = 1 << (max_tree_depth_ - it.getDepth());
     octomap::OcTreeKey min_key = it.getIndexKey();
@@ -1387,10 +1396,18 @@ void OctomapServer::update2DMap(const OcTreeT::iterator & it, bool occupied)
       int i = (min_key[0] + dx - padded_min_key_[0]) / multires_2d_scale_;
       for (int dy = 0; dy < int_size; dy++) {
         unsigned idx = mapIdx(i, (min_key[1] + dy - padded_min_key_[1]) / multires_2d_scale_);
-        if (occupied) {
-          gridmap_.data[idx] = 100;
-        } else if (gridmap_.data[idx] == -1) {
-          gridmap_.data[idx] = 0;
+        if (reverse_occupancy_) {
+          if (occupied) {
+            gridmap_.data[idx] = 0;  // Obstacle is white
+          } else if (gridmap_.data[idx] == -1) {
+            gridmap_.data[idx] = 100;  // Free space is black
+          }
+        } else {
+          if (occupied) {
+            gridmap_.data[idx] = 100;
+          } else if (gridmap_.data[idx] == -1) {
+            gridmap_.data[idx] = 0;
+          }
         }
       }
     }
@@ -1510,6 +1527,7 @@ rcl_interfaces::msg::SetParametersResult OctomapServer::onParameter(
   update_param(parameters, "ground_filter_angle", ground_filter_angle_);
   update_param(parameters, "ground_filter_plane_distance", ground_filter_plane_distance_);
   update_param(parameters, "sensor_model.max_range", max_range_);
+  update_param(parameters, "reverse_occupancy", reverse_occupancy_);
   double sensor_model_min{get_parameter("sensor_model.min").as_double()};
   update_param(parameters, "sensor_model.min", sensor_model_min);
   octree_->setClampingThresMin(sensor_model_min);

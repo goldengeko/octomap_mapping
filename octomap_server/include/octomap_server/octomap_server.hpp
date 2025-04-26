@@ -308,6 +308,8 @@ protected:
   double ground_filter_angle_;
   double ground_filter_plane_distance_;
 
+  bool reverse_occupancy_;
+
   bool compress_map_;
 
   bool init_config_;
